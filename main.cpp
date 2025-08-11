@@ -14,8 +14,8 @@
 // const int PLAY_WIDTH = 80; // 玩家高度
 // const int PLAY_HEIGHT = 80; // 玩家宽度
 // const int SHADOW_WIDTH = 32; // 阴影宽度
-const int WINDOW_WIDTH = GetSystemMetrics(SM_CXFULLSCREEN)*4/5;
-const int WINDOW_HEIGHT = GetSystemMetrics(SM_CYFULLSCREEN)*4/5;
+const int WINDOW_WIDTH = GetSystemMetrics(SM_CXFULLSCREEN) * 4 / 5;
+const int WINDOW_HEIGHT = GetSystemMetrics(SM_CYFULLSCREEN) * 4 / 5;
 // POINT player_pos = {500, 500};
 // int player_speed = 5;
 
@@ -32,10 +32,9 @@ void putimage_alpha(int x, int y, IMAGE &img) {
                GetImageHDC(&img), 0, 0, w, h, {AC_SRC_OVER, 0, 255, AC_SRC_ALPHA});
 }
 
-
-class Animation {
+class Atlas {
 public:
-    Animation(std::string path, int num, int interval) : interval_ms(interval) {
+    Atlas(std::string path, int num) {
         TCHAR file_path[MAX_PATH];
         for (int i = 0; i < num; i++) {
             _stprintf_s(file_path, path.c_str(), i);
@@ -44,34 +43,53 @@ public:
             frame_list.push_back(img);
         }
     }
-
-    void Play(int x, int y, int delta) {
-        timer += delta;
-        if (timer >= interval_ms) {
-            idx_frame = (idx_frame + 1) % (int) frame_list.size();
-            timer = 0;
-        }
-        putimage_alpha(x, y, *frame_list[idx_frame]);
+    std::vector<IMAGE *> getFrameList() const{
+        return frame_list;
     }
 
-    ~Animation() {
+    ~Atlas() {
         for (int i = 0; i < frame_list.size(); i++) {
             delete frame_list[i];
         }
     }
 
 private:
+    std::vector<IMAGE *> frame_list;
+};
+
+Atlas *player_left;
+Atlas *player_right;
+Atlas *enemy_left;
+Atlas *enemy_right;
+
+class Animation {
+public:
+    Animation(Atlas *anim_atlas, int interval) : anim_atlas(anim_atlas), interval_ms(interval) {}
+
+    void Play(int x, int y, int delta) {
+        timer += delta;
+        if (timer >= interval_ms) {
+            idx_frame = (idx_frame + 1) % (int) anim_atlas->getFrameList().size();
+            timer = 0;
+        }
+        putimage_alpha(x, y, *(anim_atlas->getFrameList())[idx_frame]);
+    }
+
+    ~Animation() = default;
+
+private:
     int timer = 0; // 动画计时器
     int interval_ms = 0; // 间隔时间 单位ms
     int idx_frame = 0; // 动画帧索引
-    std::vector<IMAGE *> frame_list;
+    Atlas *anim_atlas;
+
 };
 
 class Player {
 public:
     Player() {
-        anim_left = new Animation("./assert/img/player_left_%d.png", 6, 45);
-        anim_right = new Animation("./assert/img/player_right_%d.png", 6, 45);
+        anim_left = new Animation(player_left, 45);
+        anim_right = new Animation(player_right, 45);
         loadimage(&shadow_player, TEXT("./assert/img/shadow_player.png"));
     }
 
@@ -172,7 +190,7 @@ private:
     const int PLAY_WIDTH = 80; // 玩家高度
     const int PLAY_HEIGHT = 80; // 玩家宽度
     const int SHADOW_WIDTH = 32; // 阴影宽度
-    POINT player_pos = {WINDOW_WIDTH/2, WINDOW_HEIGHT/2};
+    POINT player_pos = {WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2};
     int player_speed = 5;
     bool is_up = false;
     bool is_down = false;
@@ -201,8 +219,8 @@ private:
 class Enemy {
 public:
     Enemy() {
-        anim_left = new Animation("./assert/img/enemy_left_%d.png", 6, 45);
-        anim_right = new Animation("./assert/img/enemy_right_%d.png", 6, 45);
+        anim_left = new Animation(enemy_left, 45);
+        anim_right = new Animation(enemy_right, 45);
         loadimage(&shadow_enemy, TEXT("./assert/img/shadow_enemy.png"));
 
         enum class SpawnEdge {
@@ -370,6 +388,12 @@ void updateBullet(std::vector<Bullet> &bullets, const Player &player) {
 int main() {
     // 初始化数据
     initgraph(WINDOW_WIDTH, WINDOW_HEIGHT);
+
+    player_left = new Atlas("./assert/img/player_left_%d.png", 6);
+    player_right = new Atlas("./assert/img/player_right_%d.png", 6);
+    enemy_left = new Atlas("./assert/img/enemy_left_%d.png", 6);
+    enemy_right = new Atlas("./assert/img/enemy_right_%d.png", 6);
+
     // loadAnimation();
     IMAGE img;
     // 加载背景
@@ -461,7 +485,7 @@ int main() {
         player.Move();
 //        enemy.Move(player);
         updateBullet(bullets, player);
-        for (auto enemy = enemys.begin(); enemy != enemys.end();enemy++) {
+        for (auto enemy = enemys.begin(); enemy != enemys.end(); enemy++) {
 //            bool is_delete = false;
             (*enemy)->Move(player);
             // 检测碰撞玩家
@@ -533,9 +557,14 @@ int main() {
             Sleep(1000 / 144 - divTime);
         }
     }
-    std::string result = "游戏结束，得分为:"+std::to_string(score);
+    std::string result = "游戏结束，得分为:" + std::to_string(score);
     MessageBox(GetHWnd(), result.c_str(), TEXT("哈哈"), MB_OK);
 
     EndBatchDraw();
+    delete player_left;
+    delete player_right;
+    delete enemy_left;
+    delete enemy_right;
+
     return 0;
 }
