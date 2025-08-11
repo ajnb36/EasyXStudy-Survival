@@ -2,7 +2,6 @@
 #include <graphics.h>
 #include <string>
 #include <vector>
-#include <cmath>
 #include <iostream>
 
 const int WINDOW_WIDTH = GetSystemMetrics(SM_CXFULLSCREEN) * 4 / 5;
@@ -31,6 +30,17 @@ public:
             frame_list.push_back(img);
         }
     }
+    Atlas(std::string path, int num, Atlas* right) {
+        TCHAR file_path[MAX_PATH];
+        for (int i = 0; i < num; i++) {
+            _stprintf_s(file_path, path.c_str(), i);
+            IMAGE *img = new IMAGE();
+            loadimage(img, file_path);
+            frame_list.push_back(img);
+
+        }
+    }
+    Atlas(){}
 
     std::vector<IMAGE *> getFrameList() const {
         return frame_list;
