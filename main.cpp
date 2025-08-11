@@ -14,8 +14,8 @@
 // const int PLAY_WIDTH = 80; // 玩家高度
 // const int PLAY_HEIGHT = 80; // 玩家宽度
 // const int SHADOW_WIDTH = 32; // 阴影宽度
-const int WINDOW_WIDTH = 1280;
-const int WINDOW_HEIGHT = 720;
+const int WINDOW_WIDTH = GetSystemMetrics(SM_CXFULLSCREEN)*4/5;
+const int WINDOW_HEIGHT = GetSystemMetrics(SM_CYFULLSCREEN)*4/5;
 // POINT player_pos = {500, 500};
 // int player_speed = 5;
 
@@ -172,7 +172,7 @@ private:
     const int PLAY_WIDTH = 80; // 玩家高度
     const int PLAY_HEIGHT = 80; // 玩家宽度
     const int SHADOW_WIDTH = 32; // 阴影宽度
-    POINT player_pos = {500, 500};
+    POINT player_pos = {WINDOW_WIDTH/2, WINDOW_HEIGHT/2};
     int player_speed = 5;
     bool is_up = false;
     bool is_down = false;
