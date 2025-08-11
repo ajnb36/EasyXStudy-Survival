@@ -5,25 +5,13 @@
 #include <cmath>
 #include <iostream>
 
-
-// int idx_current_anim = 0;
-// const int PLAY_ANIM_NUM = 6; // 动画帧总数为6
-// IMAGE play_left[PLAY_ANIM_NUM];
-// IMAGE play_right[PLAY_ANIM_NUM];
-
-// const int PLAY_WIDTH = 80; // 玩家高度
-// const int PLAY_HEIGHT = 80; // 玩家宽度
-// const int SHADOW_WIDTH = 32; // 阴影宽度
 const int WINDOW_WIDTH = GetSystemMetrics(SM_CXFULLSCREEN) * 4 / 5;
 const int WINDOW_HEIGHT = GetSystemMetrics(SM_CYFULLSCREEN) * 4 / 5;
-// POINT player_pos = {500, 500};
-// int player_speed = 5;
+const int BUTTON_WIDTH = 192;
+const int BUTTON_HEIGHT = 75;
 
-// bool is_up = false;
-// bool is_down = false;
-// bool is_left = false;
-// bool is_right = false;
-// IMAGE *what_direct;
+bool is_game_running = false;
+bool isRunning = true;
 
 void putimage_alpha(int x, int y, IMAGE &img) {
     int w = img.getwidth();
@@ -43,7 +31,8 @@ public:
             frame_list.push_back(img);
         }
     }
-    std::vector<IMAGE *> getFrameList() const{
+
+    std::vector<IMAGE *> getFrameList() const {
         return frame_list;
     }
 
@@ -328,36 +317,103 @@ private:
     bool alive = true;
 };
 
+class Button {
+private:
+    enum class Status {
+        idle = 0,
+        hovered,
+        pushed
+    };
+    RECT rect;
+    IMAGE img_idle;
+    IMAGE img_hovered;
+    IMAGE img_pushed;
+    Status status = Status::idle;
+
+    bool checkMouseHit(int x, int y) {
+        return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    }
+
+public:
+    Button(RECT &rect, std::string path_idle, std::string path_hovered, std::string path_pushed) {
+        this->rect = rect;
+        loadimage(&img_idle, path_idle.c_str());
+        loadimage(&img_hovered, path_hovered.c_str());
+        loadimage(&img_pushed, path_pushed.c_str());
+    }
+
+    ~Button() = default;
+
+    virtual void Onclick() = 0;
+
+    void processEvent(ExMessage &msg) {
+        switch (msg.message) {
+            case WM_MOUSEMOVE:
+                if (status == Status::idle && checkMouseHit(msg.x, msg.y)) {
+                    status = Status::hovered;
+                } else if (status == Status::hovered && !checkMouseHit(msg.x, msg.y)) {
+                    status = Status::idle;
+                }
+                break;
+            case WM_LBUTTONDOWN:
+                if (status == Status::hovered && checkMouseHit(msg.x, msg.y)) {
+                    status = Status::pushed;
+                }
+                break;
+            case WM_LBUTTONUP:
+                if (status == Status::pushed) {
+                    Onclick();
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    void Draw() {
+        switch (status) {
+            case Status::idle:
+                putimage(rect.left, rect.top, &img_idle);
+                break;
+            case Status::hovered:
+                putimage(rect.left, rect.top, &img_hovered);
+                break;
+            case Status::pushed:
+                putimage(rect.left, rect.top, &img_pushed);
+                break;
+        }
+    }
 
 
+};
 
-// Animation play_left("./assert/img/player_left_%d.png", 6, 45);
-// Animation play_right("./assert/img/player_right_%d.png", 6, 45);
-// IMAGE shadow_player;
+class StartGameButton : public Button {
+public:
+    StartGameButton(RECT &rect, std::string path_idle, std::string path_hovered, std::string path_pushed)
+            : Button(rect, path_idle, path_hovered, path_pushed) {}
 
-// void draw_player(int delta, int dir_x) {
-//     putimage_alpha(player_pos.x + PLAY_WIDTH / 2 - SHADOW_WIDTH / 2,
-//                    player_pos.y + PLAY_HEIGHT - shadow_player.getheight() / 2, shadow_player);
-//
-//     static bool facing_left = false;
-//     if (dir_x > 0)
-//         facing_left = false;
-//     else if (dir_x < 0)
-//         facing_left = true;
-//     if (facing_left)
-//         play_left.Play(player_pos.x, player_pos.y, delta);
-//     else
-//         play_right.Play(player_pos.x, player_pos.y, delta);
-// }
+    ~StartGameButton() = default;
 
-// void loadAnimation() {
-//     for (int i = 0; i < PLAY_ANIM_NUM; i++) {
-//         std::string str = TEXT("./assert/img/player_left_"+std::to_string(i)+".png");
-//         loadimage(&play_left[i], str.c_str());
-//         str = TEXT("./assert/img/player_right_"+std::to_string(i)+".png");
-//         loadimage(&play_right[i], str.c_str());
-//     }
-// }
+protected:
+    void Onclick() override {
+        is_game_running = true;
+        // 播放音乐
+        mciSendString(TEXT("play bgm repeat from 0"), NULL, 0, NULL);
+    }
+};
+
+class QuitGameButton : public Button {
+public:
+    QuitGameButton(RECT &rect, std::string path_idle, std::string path_hovered, std::string path_pushed)
+            : Button(rect, path_idle, path_hovered, path_pushed) {}
+
+    ~QuitGameButton() = default;
+
+protected:
+    void Onclick() override {
+        isRunning = false;
+    }
+};
 
 // 生成敌人
 void createEnemy(std::vector<Enemy *> &enemys) {
@@ -369,6 +425,7 @@ void createEnemy(std::vector<Enemy *> &enemys) {
     }
 }
 
+// 更新子弹位置
 void updateBullet(std::vector<Bullet> &bullets, const Player &player) {
     const double RADIAL_SPEED = 0.0045; // 径向波动速度
     const double TANGENT_SPEED = 0.0015; // 切向波动速度
@@ -395,162 +452,105 @@ int main() {
     enemy_right = new Atlas("./assert/img/enemy_right_%d.png", 6);
 
     // loadAnimation();
-    IMAGE img;
+    IMAGE img; // 背景
+    IMAGE start_menu; // 开始菜单背景
     // 加载背景
     loadimage(&img, TEXT("./assert/img/background.png"));
-    // what_direct = play_left;
-    // loadimage(&shadow_player, TEXT("./assert/img/shadow_player.png"));
+    loadimage(&start_menu, TEXT("./assert/img/menu.png"));
+
     // 加载音乐
     mciSendString(TEXT("open ./assert/mus/bgm.mp3 alias bgm"), NULL, 0, NULL);
     mciSendString(TEXT("open ./assert/mus/hit.wav alias hit"), NULL, 0, NULL);
-    // 播放音乐
-    mciSendString(TEXT("play bgm repeat from 0"), NULL, 0, NULL);
     Player player;
 //    Enemy enemy;
     std::vector<Enemy *> enemys;
     std::vector<Bullet> bullets(3);
+
+    RECT start_game_rect, quit_game_rect;
+    start_game_rect.left = (WINDOW_WIDTH - BUTTON_WIDTH)/2;
+    start_game_rect.right = start_game_rect.left + BUTTON_WIDTH;
+    start_game_rect.top = WINDOW_HEIGHT * 2 / 3 - BUTTON_HEIGHT/2;
+    start_game_rect.bottom = start_game_rect.top + BUTTON_HEIGHT;
+
+    quit_game_rect.left = (WINDOW_WIDTH - BUTTON_WIDTH)/2;
+    quit_game_rect.right = quit_game_rect.left + BUTTON_WIDTH;
+    quit_game_rect.top = start_game_rect.bottom + 20;
+    quit_game_rect.bottom = quit_game_rect.top + BUTTON_HEIGHT;
+
+
+    StartGameButton start_game_button = StartGameButton(start_game_rect, "./assert/img/ui_start_idle.png", "./assert/img/ui_start_hovered.png", "./assert/img/ui_start_pushed.png");
+    QuitGameButton quit_game_button = QuitGameButton(quit_game_rect, "./assert/img/ui_quit_idle.png", "./assert/img/ui_quit_hovered.png", "./assert/img/ui_quit_pushed.png");
+
+
     // 得分
     int score = 0;
     BeginBatchDraw();
 
-    bool isRunning = true;
     while (isRunning) {
         // 读取操作
         DWORD beginTime = GetTickCount();
         ExMessage msg;
         while (peekmessage(&msg)) {
-//            if (msg.message == WM_KEYDOWN) {
-//                switch (msg.vkcode) {
-//                    case VK_LEFT:
-//                        is_left = true;
-//                        break;
-//                    case VK_RIGHT:
-//                        is_right = true;
-//                        break;
-//                    case VK_UP:
-//                        is_up = true;
-//                        break;
-//                    case VK_DOWN:
-//                        is_down = true;
-//                        break;
-//                    default: ;
-//                }
-//            } else if (msg.message == WM_KEYUP) {
-//                switch (msg.vkcode) {
-//                    case VK_LEFT:
-//                        is_left = false;
-//                        break;
-//                    case VK_RIGHT:
-//                        is_right = false;
-//                        break;
-//                    case VK_UP:
-//                        is_up = false;
-//                        break;
-//                    case VK_DOWN:
-//                        is_down = false;
-//                        break;
-//                    default: ;
-//                }
-//            }
-            player.ProcessEvent(msg);
-        }
-
-        // 处理数据
-        // 为保证斜着走时，也能保证速度和单方向走时一致，需要对速度进行归一化处理
-//        int dir_x = is_right - is_left;
-//        int dir_y = is_down - is_up;
-//        double len_dir = sqrt(dir_x * dir_x + dir_y * dir_y);
-//        if (len_dir != 0) {
-//            double normalized_x = player_speed * dir_x / len_dir;
-//            double normalized_y = player_speed * dir_y / len_dir;
-//            player_pos.x += normalized_x;
-//            player_pos.y += normalized_y;
-//        }
-//
-//        // 保证玩家不出界
-//        if (player_pos.x < 0) player_pos.x = 0;
-//        if (player_pos.y < 0) player_pos.y = 0;
-//        if (player_pos.x + PLAY_WIDTH > WINDOW_WIDTH) player_pos.x = WINDOW_WIDTH - PLAY_WIDTH;
-//        if (player_pos.y + PLAY_HEIGHT > WINDOW_HEIGHT) player_pos.y = WINDOW_HEIGHT - PLAY_HEIGHT;
-        // 生成敌人
-//        static int tick = 0;
-//        tick++;
-////        std::cout << "current tick: " << tick << std::endl;
-//        if (tick % 144 == 0){
-////            std::cout << "created" << std::endl;
-//            enemys.push_back(new Enemy());
-//        }
-        createEnemy(enemys);
-
-        player.Move();
-//        enemy.Move(player);
-        updateBullet(bullets, player);
-        for (auto enemy = enemys.begin(); enemy != enemys.end(); enemy++) {
-//            bool is_delete = false;
-            (*enemy)->Move(player);
-            // 检测碰撞玩家
-            if ((*enemy)->CheckPlayerCollision(player)) {
-                isRunning = false;
-                break;
+            if (is_game_running){
+                player.ProcessEvent(msg);
+            }else{
+                start_game_button.processEvent(msg);
+                quit_game_button.processEvent(msg);
             }
-            // 检测碰撞子弹
-            for (Bullet &bullet: bullets) {
-                if ((*enemy)->CheckBulletCollision(bullet)) {
-                    (*enemy)->Hurt();
-                    mciSendString(TEXT("play hit from 0"), NULL, 0, NULL);
-//                    delete *enemy;
-//                    enemy = enemys.erase(enemy);
-//                    is_delete = true;
+
+        }
+        if (is_game_running){
+            createEnemy(enemys);
+            player.Move();
+            updateBullet(bullets, player);
+            for (auto enemy = enemys.begin(); enemy != enemys.end(); enemy++) {
+                (*enemy)->Move(player);
+                // 检测碰撞玩家
+                if ((*enemy)->CheckPlayerCollision(player)) {
+                    isRunning = false;
                     break;
                 }
+                // 检测碰撞子弹
+                for (Bullet &bullet: bullets) {
+                    if ((*enemy)->CheckBulletCollision(bullet)) {
+                        (*enemy)->Hurt();
+                        mciSendString(TEXT("play hit from 0"), NULL, 0, NULL);
+                        break;
+                    }
+                }
             }
-//            if (is_delete){
-//                is_delete = false;
-//            }else{
-//                enemy++;
-//            }
-        }
-        // 删除死亡的敌人
-        for (auto enemy = enemys.begin(); enemy != enemys.end();) {
-            if (!((*enemy)->CheckAlive())) {
-                delete *enemy;
-                enemy = enemys.erase(enemy);
-                score++;
-            } else {
-                enemy++;
+            // 删除死亡的敌人
+            for (auto enemy = enemys.begin(); enemy != enemys.end();) {
+                if (!((*enemy)->CheckAlive())) {
+                    delete *enemy;
+                    enemy = enemys.erase(enemy);
+                    score++;
+                } else {
+                    enemy++;
+                }
             }
         }
 
 
-
-        // if (is_left) player_pos.x -= player_speed;
-        // if (is_right) player_pos.x += player_speed;
-        // if (is_up) player_pos.y -= player_speed;
-        // if (is_down) player_pos.y += player_speed;
-
-
-        // static int count = 0;
-        // if (++count % 5 == 0)
-        //     idx_current_anim++;
-        // // 使动画循环播放
-        // // idx_current_anim = idx_current_anim % PLAY_ANIM_NUM;
-
-        cleardevice();
         // 渲染
-        putimage(0, 0, &img);
-//        draw_player(1000 / 144, is_right - is_left);
-        // if (is_left) what_direct = play_left;
-        // if (is_right) what_direct = play_right;
-        // putimage_alpha(player_pos.x, player_pos.y, what_direct[idx_current_anim]);
-        player.Draw(1000 / 144);
-//        enemy.Draw(1000 / 144);
-        for (auto enemy: enemys) {
-            enemy->Draw(1000 / 144);
-        }
-        for (Bullet &b: bullets) {
-            b.Draw();
+        cleardevice();
+        if (is_game_running){
+            putimage(0, 0, &img);
+            player.Draw(1000 / 144);
+            for (auto enemy: enemys) {
+                enemy->Draw(1000 / 144);
+            }
+            for (Bullet &b: bullets) {
+                b.Draw();
+            }
+        }else{
+            putimage(0, 0, &start_menu);
+            start_game_button.Draw();
+            quit_game_button.Draw();
         }
         FlushBatchDraw();
+
+
         DWORD endTime = GetTickCount();
         DWORD divTime = endTime - beginTime;
         if (divTime < 1000 / 144) {
