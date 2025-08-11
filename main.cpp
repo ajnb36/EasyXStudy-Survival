@@ -376,6 +376,11 @@ int main() {
     loadimage(&img, TEXT("./assert/img/background.png"));
     // what_direct = play_left;
     // loadimage(&shadow_player, TEXT("./assert/img/shadow_player.png"));
+    // º”‘ÿ“Ù¿÷
+    mciSendString(TEXT("open ./assert/mus/bgm.mp3 alias bgm"), NULL, 0, NULL);
+    mciSendString(TEXT("open ./assert/mus/hit.wav alias hit"), NULL, 0, NULL);
+    // ≤•∑≈“Ù¿÷
+    mciSendString(TEXT("play bgm repeat from 0"), NULL, 0, NULL);
     Player player;
 //    Enemy enemy;
     std::vector<Enemy *> enemys;
@@ -468,6 +473,7 @@ int main() {
             for (Bullet &bullet: bullets) {
                 if ((*enemy)->CheckBulletCollision(bullet)) {
                     (*enemy)->Hurt();
+                    mciSendString(TEXT("play hit from 0"), NULL, 0, NULL);
 //                    delete *enemy;
 //                    enemy = enemys.erase(enemy);
 //                    is_delete = true;
