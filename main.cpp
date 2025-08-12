@@ -2,8 +2,6 @@
 #include <graphics.h>
 #include <string>
 #include <vector>
-#include <cmath>
-#include <iostream>
 
 const int WINDOW_WIDTH = GetSystemMetrics(SM_CXFULLSCREEN) * 4 / 5;
 const int WINDOW_HEIGHT = GetSystemMetrics(SM_CYFULLSCREEN) * 4 / 5;
@@ -16,13 +14,13 @@ bool isRunning = true;
 void putimage_alpha(int x, int y, IMAGE &img) {
     int w = img.getwidth();
     int h = img.getheight();
-    AlphaBlend(GetImageHDC(NULL), x, y, w, h,
+    AlphaBlend(GetImageHDC(nullptr), x, y, w, h,
                GetImageHDC(&img), 0, 0, w, h, {AC_SRC_OVER, 0, 255, AC_SRC_ALPHA});
 }
 
 class Atlas {
 public:
-    Atlas(std::string path, int num) {
+    Atlas(const std::string& path, int num) {
         TCHAR file_path[MAX_PATH];
         for (int i = 0; i < num; i++) {
             _stprintf_s(file_path, path.c_str(), i);
@@ -195,7 +193,7 @@ public:
 
     POINT pos = {0, 0};
 
-    void Draw() {
+    void Draw() const {
         setlinecolor(RGB(255, 155, 50));
         setfillcolor(RGB(200, 75, 10));
         fillcircle(pos.x, pos.y, radius);
@@ -260,7 +258,7 @@ public:
         }
     }
 
-    bool CheckBulletCollision(const Bullet &bullet) {
+    bool CheckBulletCollision(const Bullet &bullet) const {
         if (bullet.pos.x >= enemy_pos.x && bullet.pos.x <= enemy_pos.x + ENEMY_WIDTH &&
             bullet.pos.y >= enemy_pos.y && bullet.pos.y <= enemy_pos.y + ENEMY_HEIGHT)
             return true;
@@ -269,7 +267,7 @@ public:
     }
 
     // 只要敌人的中心点在玩家的矩形中即可（就不用矩形碰矩形了）
-    bool CheckPlayerCollision(const Player &player) {
+    bool CheckPlayerCollision(const Player &player) const {
         POINT enemy_center = {enemy_pos.x + ENEMY_WIDTH / 2, enemy_pos.y + ENEMY_HEIGHT / 2};
         if (enemy_center.x >= player.getPlayerPos().x &&
             enemy_center.x <= player.getPlayerPos().x + player.getWidth() &&
@@ -292,7 +290,7 @@ public:
         alive = false;
     }
 
-    bool CheckAlive() {
+    bool CheckAlive() const {
         return alive;
     }
 
@@ -324,25 +322,25 @@ private:
         hovered,
         pushed
     };
-    RECT rect;
+    RECT rect{};
     IMAGE img_idle;
     IMAGE img_hovered;
     IMAGE img_pushed;
     Status status = Status::idle;
 
-    bool checkMouseHit(int x, int y) {
+    bool checkMouseHit(int x, int y) const {
         return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
     }
 
 public:
-    Button(RECT &rect, std::string path_idle, std::string path_hovered, std::string path_pushed) {
+    Button(RECT &rect, const std::string& path_idle, const std::string& path_hovered, const std::string& path_pushed) {
         this->rect = rect;
         loadimage(&img_idle, path_idle.c_str());
         loadimage(&img_hovered, path_hovered.c_str());
         loadimage(&img_pushed, path_pushed.c_str());
     }
 
-    ~Button() = default;
+    virtual ~Button() = default;
 
     virtual void Onclick() = 0;
 
@@ -389,25 +387,25 @@ public:
 
 class StartGameButton : public Button {
 public:
-    StartGameButton(RECT &rect, std::string path_idle, std::string path_hovered, std::string path_pushed)
+    StartGameButton(RECT &rect, const std::string& path_idle, const std::string& path_hovered, const std::string& path_pushed)
             : Button(rect, path_idle, path_hovered, path_pushed) {}
 
-    ~StartGameButton() = default;
+    ~StartGameButton() override = default;
 
 protected:
     void Onclick() override {
         is_game_running = true;
         // 播放音乐
-        mciSendString(TEXT("play bgm repeat from 0"), NULL, 0, NULL);
+        mciSendString(TEXT("play bgm repeat from 0"), nullptr, 0, nullptr);
     }
 };
 
 class QuitGameButton : public Button {
 public:
-    QuitGameButton(RECT &rect, std::string path_idle, std::string path_hovered, std::string path_pushed)
+    QuitGameButton(RECT &rect, const std::string& path_idle, const std::string& path_hovered, const std::string& path_pushed)
             : Button(rect, path_idle, path_hovered, path_pushed) {}
 
-    ~QuitGameButton() = default;
+    ~QuitGameButton() override = default;
 
 protected:
     void Onclick() override {
@@ -429,15 +427,15 @@ void createEnemy(std::vector<Enemy *> &enemys) {
 void updateBullet(std::vector<Bullet> &bullets, const Player &player) {
     const double RADIAL_SPEED = 0.0045; // 径向波动速度
     const double TANGENT_SPEED = 0.0015; // 切向波动速度
-    double radian_interval = 2 * 3.1415926 / bullets.size(); // 每个子弹之间的弧度间隔
+    double radian_interval = 2 * 3.1415926 / (int)bullets.size(); // 每个子弹之间的弧度间隔
     POINT player_center = {player.getPlayerPos().x + player.getWidth() / 2,
                            player.getPlayerPos().y + player.getHeight() / 2};
     double radius =
             1.5 * fmax(player.getHeight(), player.getWidth()) + 25 * sin(GetTickCount() * RADIAL_SPEED); // 让半径周期性变化
     for (int i = 0; i < bullets.size(); ++i) {
         double radian = i * radian_interval + GetTickCount() * TANGENT_SPEED; // 弧度也周期性变化
-        bullets[i].pos.x = player_center.x + radius * cos(radian);
-        bullets[i].pos.y = player_center.y + radius * sin(radian);
+        bullets[i].pos.x = (int)(player_center.x + radius * cos(radian));
+        bullets[i].pos.y = (int)(player_center.y + radius * sin(radian));
     }
 }
 
@@ -459,8 +457,8 @@ int main() {
     loadimage(&start_menu, TEXT("./assert/img/menu.png"));
 
     // 加载音乐
-    mciSendString(TEXT("open ./assert/mus/bgm.mp3 alias bgm"), NULL, 0, NULL);
-    mciSendString(TEXT("open ./assert/mus/hit.wav alias hit"), NULL, 0, NULL);
+    mciSendString(TEXT("open ./assert/mus/bgm.mp3 alias bgm"), nullptr, 0, nullptr);
+    mciSendString(TEXT("open ./assert/mus/hit.wav alias hit"), nullptr, 0, nullptr);
     Player player;
 //    Enemy enemy;
     std::vector<Enemy *> enemys;
@@ -489,7 +487,7 @@ int main() {
     while (isRunning) {
         // 读取操作
         DWORD beginTime = GetTickCount();
-        ExMessage msg;
+        ExMessage msg{};
         while (peekmessage(&msg)) {
             if (is_game_running){
                 player.ProcessEvent(msg);
@@ -503,18 +501,18 @@ int main() {
             createEnemy(enemys);
             player.Move();
             updateBullet(bullets, player);
-            for (auto enemy = enemys.begin(); enemy != enemys.end(); enemy++) {
-                (*enemy)->Move(player);
+            for (auto & enemy : enemys) {
+                enemy->Move(player);
                 // 检测碰撞玩家
-                if ((*enemy)->CheckPlayerCollision(player)) {
+                if (enemy->CheckPlayerCollision(player)) {
                     isRunning = false;
                     break;
                 }
                 // 检测碰撞子弹
                 for (Bullet &bullet: bullets) {
-                    if ((*enemy)->CheckBulletCollision(bullet)) {
-                        (*enemy)->Hurt();
-                        mciSendString(TEXT("play hit from 0"), NULL, 0, NULL);
+                    if (enemy->CheckBulletCollision(bullet)) {
+                        enemy->Hurt();
+                        mciSendString(TEXT("play hit from 0"), nullptr, 0, nullptr);
                         break;
                     }
                 }
